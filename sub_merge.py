@@ -24,7 +24,7 @@ sub_merge.py — 把 sub_collector.py 采集到的订阅链接全部抓下来，
 输出裁剪：真实测速开启时按延迟与服务器限额选拔（见下文）；关闭时沿用
 旧逻辑 — 存活过滤后按来源轮询交错取前 MAX_NODES 个（默认 200），避免
 排在前面的订阅吃光名额。
-Clash 规则：运行时拉取 ACL4SSR_INI 指向的 ini（默认 ACL4SSR 官方仓库的
+Clash 规则：运行时拉取 ACL4SSR_INI 指向的 ini（默认 Gavin 的 ACL4SSR fork
 Mini 版），按其中的 custom_proxy_group 生成策略组、ruleset 生成
 rule-providers + 规则；拉取失败则回退到单个选择组 + MATCH。
 SS 口径：ss:// 节点与 Clash 里 type: ss 的条目一律剔除（沿用采集阶段的要求）；
@@ -36,10 +36,11 @@ SSR 不在剔除范围。
 这一层被剔除（计入 bad_skipped / clash_bad）。
 
 只用 Python 3 标准库。可选环境变量：
-  LINKS_FILE     订阅链接清单（默认脚本同目录 out/all_links.txt）
+  LINKS_FILE     订阅链接清单（默认 /opt/sub-collector/out/all_links.txt，
+                 在本机调试时可用相对路径覆盖）
   OUT_DIR        输出目录（默认与 LINKS_FILE 同目录）
   MAX_NODES      每份输出的节点上限（默认 200）
-  ACL4SSR_INI    Clash 规则 ini 地址（默认 ACL4SSR 官方 Mini 版，可指向自己的 fork）
+  ACL4SSR_INI    Clash 规则 ini 地址（默认 gtang8/ACL4SSR 的 Mini 版）
   CHECK_ALIVE    存活检查开关（默认 1 开；0 关）
   CHECK_TIMEOUT  单个端点的连接超时秒数（默认 3）
   CHECK_WORKERS  存活检查并发数（默认 100）
@@ -70,15 +71,14 @@ from collections import deque
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LINKS_FILE = os.environ.get(
-    "LINKS_FILE", os.path.join(BASE_DIR, "out", "all_links.txt"))
+    "LINKS_FILE", "/opt/sub-collector/out/all_links.txt")
 OUT_DIR = os.environ.get(
     "OUT_DIR", os.path.dirname(os.path.abspath(LINKS_FILE)) or ".")
 MAX_NODES = int(os.environ.get("MAX_NODES", "200"))
 INI_URL = os.environ.get(
     "ACL4SSR_INI",
-    "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/config/"
+    "https://raw.githubusercontent.com/gtang8/ACL4SSR/master/Clash/config/"
     "ACL4SSR_Mini.ini")
 FETCH_LIMIT = 3_000_000
 CHECK_ALIVE = os.environ.get("CHECK_ALIVE", "1") not in ("0", "false", "no")
@@ -93,7 +93,7 @@ REAL_DEADLINE = float(os.environ.get("REAL_DEADLINE", "900"))
 PER_IP_CAP = int(os.environ.get("PER_IP_CAP", "3"))
 MIHOMO_BIN = os.environ.get(
     "MIHOMO_BIN",
-    os.path.join(BASE_DIR, "mihomo"))
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "mihomo"))
 MIHOMO_CTRL_PORT = 19327
 MIHOMO_MIXED_PORT = 17827
 TEST_URL = "http://www.gstatic.com/generate_204"
@@ -394,7 +394,7 @@ UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
     r"[0-9a-fA-F]{12}$")
 SUPPORTED_TYPES = ("vmess", "vless", "trojan", "ssr", "hysteria",
-                   "hysteria2", "tuic", "http", "socks5")
+                   "hysteria2", "tuic")
 SSR_PROTOCOLS = ("origin", "verify_sha1", "auth_sha1_v4", "auth_aes128_md5",
                  "auth_aes128_sha1", "auth_chain_a", "auth_chain_b")
 SSR_OBFS = ("plain", "http_simple", "http_post", "random_head",
@@ -666,8 +666,6 @@ TYPE_KEYS = {
     "hysteria2": ("password", "obfs", "obfs-password"),
     "tuic": ("uuid", "password", "congestion-controller", "udp-relay-mode",
              "disable-sni"),
-    "http": ("username", "password"),
-    "socks5": ("username", "password"),
 }
 OPTS_KEYS = {"ws-opts": ("path", "headers", "max-early-data",
                          "early-data-header-name"),
