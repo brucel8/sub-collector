@@ -57,6 +57,17 @@ cd out && python3 -m http.server 8351
 
 ## Scheduled runs
 
+### Option A: GitHub Actions (hosted — nothing to run yourself)
+
+The bundled workflow `.github/workflows/daily-collect.yml` runs the whole pipeline on GitHub once a day at **07:30 Asia/Shanghai** (23:30 UTC; GitHub cron can start a few minutes late). It runs the collector, then the merger, and commits `out/` and `state.json` back to the repo, so the subscription files are served straight from the repo's raw URLs:
+
+- `https://raw.githubusercontent.com/harryl8/sub-collector/main/out/merged-clash.yaml`
+- `https://raw.githubusercontent.com/harryl8/sub-collector/main/out/merged-v2ray.txt`
+
+You can also start a run manually any time from the repo's Actions tab (`workflow_dispatch`). No secrets to configure — the workflow uses the built-in `GITHUB_TOKEN`.
+
+### Option B: your own server (cron)
+
 One round every 8 hours; collector and merger are chained (the merger must run after the collector):
 
 ```cron
