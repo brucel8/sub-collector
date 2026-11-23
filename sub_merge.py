@@ -393,7 +393,7 @@ def extract_yaml_proxies(text):
 UUID_RE = re.compile(
     r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-"
     r"[0-9a-fA-F]{12}$")
-SUPPORTED_TYPES = ("vmess", "vless", "trojan", "ssr", "hysteria",
+SUPPORTED_TYPES = ("vmess", "vless", "trojan", "hysteria",
                    "hysteria2", "tuic")
 SSR_PROTOCOLS = ("origin", "verify_sha1", "auth_sha1_v4", "auth_aes128_md5",
                  "auth_aes128_sha1", "auth_chain_a", "auth_chain_b")
@@ -660,8 +660,6 @@ TYPE_KEYS = {
     "vless": ("uuid", "flow", "network", "ws-opts", "grpc-opts",
               "reality-opts", "client-fingerprint"),
     "trojan": ("password", "network", "ws-opts", "grpc-opts"),
-    "ssr": ("cipher", "password", "protocol", "obfs", "protocol-param",
-            "obfs-param"),
     "hysteria": ("auth-str", "auth", "protocol", "up", "down", "obfs"),
     "hysteria2": ("password", "obfs", "obfs-password"),
     "tuic": ("uuid", "password", "congestion-controller", "udp-relay-mode",
@@ -1072,7 +1070,7 @@ def process(texts):
         # 1) URI 节点
         for uri in extract_uris_from_text(text):
             proto = uri.split("://", 1)[0].lower()
-            if proto == "ss":
+            if proto in ("ss", "ssr"):
                 stats["ss_dropped"] += 1
                 continue
             parser = PARSERS.get(proto)
