@@ -26,7 +26,7 @@ out/all_links.txt                    socks5 / http → TCP 粗筛 → mihomo
 ## 快速开始
 
 ```bash
-git clone https://github.com/harryl8/sub-collector.git
+git clone https://github.com/elvisl8/sub-collector.git
 cd sub-collector
 
 python3 sub_collector.py   # 采集，生成 out/all_links.txt
@@ -60,8 +60,8 @@ cd out && python3 -m http.server 8351
 
 仓库自带 workflow `.github/workflows/daily-collect.yml`，每天 **07:30（北京时间）** 在 GitHub 上自动跑一轮（cron 按 UTC 为 23:30，高峰期可能延迟几分钟）：先采集、再合并测速，然后把 `out/` 和 `state.json` 提交回仓库，订阅文件直接用仓库的 raw 地址：
 
-- `https://raw.githubusercontent.com/harryl8/sub-collector/main/out/merged-clash.yaml`
-- `https://raw.githubusercontent.com/harryl8/sub-collector/main/out/merged-v2ray.txt`
+- `https://raw.githubusercontent.com/elvisl8/sub-collector/main/out/merged-clash.yaml`
+- `https://raw.githubusercontent.com/elvisl8/sub-collector/main/out/merged-v2ray.txt`
 
 也可以在仓库 Actions 页随时手动触发（`workflow_dispatch`）。不需要配任何密钥，workflow 用的是内置 `GITHUB_TOKEN`。
 

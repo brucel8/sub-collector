@@ -27,7 +27,7 @@ out/all_links.txt                    TCP pre-filter → mihomo real test →
 ## Quick start
 
 ```bash
-git clone https://github.com/harryl8/sub-collector.git
+git clone https://github.com/elvisl8/sub-collector.git
 cd sub-collector
 
 python3 sub_collector.py   # harvest → out/all_links.txt
@@ -61,8 +61,8 @@ cd out && python3 -m http.server 8351
 
 The bundled workflow `.github/workflows/daily-collect.yml` runs the whole pipeline on GitHub once a day at **07:30 Asia/Shanghai** (23:30 UTC; GitHub cron can start a few minutes late). It runs the collector, then the merger, and commits `out/` and `state.json` back to the repo, so the subscription files are served straight from the repo's raw URLs:
 
-- `https://raw.githubusercontent.com/harryl8/sub-collector/main/out/merged-clash.yaml`
-- `https://raw.githubusercontent.com/harryl8/sub-collector/main/out/merged-v2ray.txt`
+- `https://raw.githubusercontent.com/elvisl8/sub-collector/main/out/merged-clash.yaml`
+- `https://raw.githubusercontent.com/elvisl8/sub-collector/main/out/merged-v2ray.txt`
 
 You can also start a run manually any time from the repo's Actions tab (`workflow_dispatch`). No secrets to configure — the workflow uses the built-in `GITHUB_TOKEN`.
 
