@@ -1,118 +1,128 @@
 # sub-collector
 
-从 GitHub 自动采集免费 V2Ray / Clash 订阅、逐个节点**真实测速**后合并出货的两件套工具。
+[中文说明](README.zh-CN.md)
 
-免费订阅最大的问题不是找不到，而是找到的节点大多已经死了：端口还开着、协议早已失效，普通"存活检查"根本筛不出来。这套工具的合并环节会把候选节点全量加载进 [mihomo](https://github.com/MetaCubeX/mihomo) 内核，逐个真的经节点访问测试页，**只有拿到响应才算通过**，发布出去的每个节点都是发布前几分钟刚实测可用的。
+A two-piece toolkit that harvests free V2Ray / Clash subscriptions from GitHub, **actually speed-tests every candidate node**, and publishes a merged subscription containing only nodes verified working minutes before release.
 
-纯 Python 3 标准库实现，零 pip 依赖；mihomo 二进制缺失时脚本会自动从 GitHub 下载对应架构的最新版。
+The hard problem with free subscriptions is not finding nodes — it is that most of them are already dead: the port still answers, but the protocol behind it is long gone, so a plain "is it alive" check cannot tell. The merger loads all candidates into the [mihomo](https://github.com/MetaCubeX/mihomo) core and fetches a test page *through each node*; a node ships only if it returns a real response.
 
-## 工作流程
+Pure Python 3 standard library, zero pip dependencies. If the mihomo binary is missing, the script downloads the latest build for your architecture from GitHub automatically.
+
+## How it works
 
 ```
 sub_collector.py                     sub_merge.py
 ─────────────────                    ─────────────────────────────
-GitHub API 搜索近 7 天更新的     →   抓取全部订阅 → 解析节点（URI / base64 /
-订阅仓库 → 挑选 all/综合订阅          Clash YAML 三路）→ 按（协议+服务器+
-文件 → 轻量校验 →                    端口+凭证）去重 → 剔除 SS → TCP 粗筛
-out/all_links.txt                    → mihomo 真实测速 → 按延迟排序 →
-                                     同服务器限额 → out/merged-*
+Search GitHub for repos updated  →   Fetch every subscription → parse nodes
+in the last 7 days → pick the        (URI / base64 / Clash YAML) → dedupe by
+"all / combined" subscription        (protocol + server + port + credential)
+files → light validation →           → drop ss / ssr / socks5 / http →
+out/all_links.txt                    TCP pre-filter → mihomo real test →
+                                     sort by latency → per-server cap →
+                                     out/merged-*
 ```
 
-## 快速开始
+**Node type policy:** only six types are kept — `vmess`, `vless`, `trojan`, `hysteria`, `hysteria2`, `tuic`. `ss` and `ssr` are dropped at the URI entry point; `socks5` and `http` only ever arrive via Clash YAML sources and are rejected by the type whitelist.
+
+## Quick start
 
 ```bash
-git clone https://github.com/elvisl8/sub-collector.git
+git clone https://github.com/harryl8/sub-collector.git
 cd sub-collector
 
-python3 sub_collector.py   # 采集，生成 out/all_links.txt
-python3 sub_merge.py       # 合并+测速，生成 out/merged-v2ray.txt、out/merged-clash.yaml
+python3 sub_collector.py   # harvest → out/all_links.txt
+python3 sub_merge.py       # merge + real test → out/merged-v2ray.txt, out/merged-clash.yaml
 ```
 
-对外发布（任意静态 HTTP 服务都可以）：
+Serve the results with any static HTTP server:
 
 ```bash
 cd out && python3 -m http.server 8351
-# 订阅地址示例：
-#   http://<你的IP>:8351/merged-clash.yaml
-#   http://<你的IP>:8351/merged-v2ray.txt
+# subscription URLs, e.g.:
+#   http://<your-ip>:8351/merged-clash.yaml
+#   http://<your-ip>:8351/merged-v2ray.txt
 ```
 
-## 输出文件
+## Output files
 
-| 文件 | 说明 |
+| File | Contents |
 |---|---|
-| `out/latest.txt` | 采集清单：仓库 / 更新时间 / raw 链接 / 约节点数 |
-| `out/all_links.txt` | 纯订阅链接列表（合并器的输入） |
-| `out/report-YYYY-MM-DD.md` | 采集日报 |
-| `out/merged-v2ray.txt` | 合并订阅（base64 通用格式，v2rayN 等客户端可用） |
-| `out/merged-v2ray-plain.txt` | 同上明文版（排查用） |
-| `out/merged-clash.yaml` | Clash / mihomo 完整配置（节点 + ACL4SSR 策略组与规则） |
-| `out/merge-stats.txt` | 本次合并统计，即日志里的 Done 行 |
+| `out/latest.txt` | Harvest list: repo / last update / raw link / approx. node count |
+| `out/all_links.txt` | Plain subscription link list (the merger's input) |
+| `out/report-YYYY-MM-DD.md` | Daily harvest report |
+| `out/merged-v2ray.txt` | Merged subscription, base64 (works in v2rayN and similar clients) |
+| `out/merged-v2ray-plain.txt` | Same, plain text (for debugging) |
+| `out/merged-clash.yaml` | Full Clash / mihomo config (nodes + ACL4SSR groups and rules) |
+| `out/merge-stats.txt` | This run's merge statistics (the `Done:` line) |
 
-## 定时运行
+## Scheduled runs
 
-每 8 小时跑一轮（采集和合并链式执行，`sub_merge` 必须排在采集之后）：
+One round every 8 hours; collector and merger are chained (the merger must run after the collector):
 
 ```cron
 CRON_TZ=Asia/Shanghai
 20 */8 * * * /usr/bin/python3 /path/to/sub_collector.py >> /path/to/run.log 2>&1; /usr/bin/python3 /path/to/sub_merge.py >> /path/to/merge.log 2>&1
 ```
 
-## 环境变量
+## Environment variables
 
 **sub_collector.py**
 
-| 变量 | 默认 | 说明 |
+| Variable | Default | Notes |
 |---|---|---|
-| `GITHUB_TOKEN` | 空 | 填了可把 GitHub API 限额从 60 次/小时提到 5000 次/小时（不填也能跑） |
-| `MAX_REPOS` | 60 | 最多深入扫描的仓库数 |
-| `DAYS` | 7 | 只看最近多少天内有更新的仓库 |
-| `MAX_LINKS` | 120 | 清单最多输出多少条链接 |
+| `GITHUB_TOKEN` | empty | Raises the GitHub API limit from 60 to 5,000 requests/hour (optional) |
+| `MAX_REPOS` | 60 | Max repos to scan in depth |
+| `DAYS` | 7 | Only repos updated within this many days |
+| `MAX_LINKS` | 120 | Max links in the output list |
 
 **sub_merge.py**
 
-| 变量 | 默认 | 说明 |
+| Variable | Default | Notes |
 |---|---|---|
-| `LINKS_FILE` | `out/all_links.txt` | 订阅链接清单路径 |
-| `OUT_DIR` | 与 LINKS_FILE 同目录 | 输出目录 |
-| `MAX_NODES` | 200 | 每份输出的节点上限 |
-| `ACL4SSR_INI` | ACL4SSR 官方 Mini 版 | Clash 规则 ini 地址，可指向自己的 fork |
-| `CHECK_ALIVE` | 1 | 一级 TCP 粗筛开关（0 关） |
-| `CHECK_TIMEOUT` / `CHECK_WORKERS` | 3 秒 / 100 | 粗筛超时与并发 |
-| `REAL_TEST` | 1 | 二级真实测速开关（0 关，回退到只用一级检查） |
-| `REAL_CAP` | 4000 | 真实测速最多测多少个候选节点 |
-| `REAL_TIMEOUT_MS` | 6000 | 单节点测速超时（毫秒） |
-| `REAL_DEADLINE` | 900 | 真实测速总时长上限（秒），超时用已通过的结果出货 |
-| `PER_IP_CAP` | 3 | 最终输出里同一服务器最多留几个节点 |
-| `MIHOMO_BIN` | 脚本同目录 `mihomo` | mihomo 二进制路径 |
+| `LINKS_FILE` | `/opt/sub-collector/out/all_links.txt` | Subscription list path; override with a relative path for local debugging |
+| `OUT_DIR` | Same directory as `LINKS_FILE` | Output directory |
+| `MAX_NODES` | 200 | Node cap per output file |
+| `ACL4SSR_INI` | gtang8/ACL4SSR fork, Mini config | Clash rules ini URL; can point to the official ACL4SSR repo or your own fork |
+| `CHECK_ALIVE` | 1 | Stage-1 TCP pre-filter switch (0 = off) |
+| `CHECK_TIMEOUT` / `CHECK_WORKERS` | 3 s / 100 | Pre-filter timeout and concurrency |
+| `REAL_TEST` | 1 | Stage-2 real test switch (0 = off, falls back to stage-1 only) |
+| `REAL_CAP` | 4000 | Max candidates to real-test |
+| `REAL_CHUNK` / `REAL_WORKERS` | 400 / 40 | Nodes per mihomo test chunk / parallel test workers |
+| `REAL_TIMEOUT_MS` | 6000 | Per-node test timeout (ms) |
+| `REAL_DEADLINE` | 900 | Overall real-test budget (seconds); ships with whatever has passed when it expires |
+| `PER_IP_CAP` | 3 | Max nodes per server in the final output |
+| `MIHOMO_BIN` | `mihomo` next to the script | mihomo binary path |
 
-## 合并统计（Done 行）字段
+## Reading the merge statistics
+
+A real run (2026-11-23):
 
 ```
-Done: sources=88 v2ray_nodes=187 clash_proxies=200 dup_removed=51018
-      ss_dropped=7506 bad_skipped=77 clash_bad=0 endpoints=13505
-      alive_endpoints=8114 dead_dropped=6001 unchecked_udp=1100
-      real_tested=3958 real_passed=480 real_bad=2
+Done: sources=86 v2ray_nodes=200 clash_proxies=200 dup_removed=48666
+      ss_dropped=10079 bad_skipped=586 clash_bad=1 endpoints=13007
+      alive_endpoints=7633 dead_dropped=5859 unchecked_udp=1235
+      real_tested=3198 real_passed=371 real_bad=2
 ```
 
-- `dup_removed` 按（协议+服务器+端口+凭证）判重删掉的重复节点 —— 同一节点换个备注名也只留一份
-- `bad_skipped` / `clash_bad` 字段不合法被剔除的条目（端口非法、UUID 格式错误、占位符服务器、上游混入的示例模板等）
-- `real_tested / real_passed / real_bad` 真实测速的已测 / 通过 / 被内核拒绝的毒条目数
+- `dup_removed` — duplicates removed by (protocol + server + port + credential); the same node under a different name still counts once
+- `ss_dropped` — `ss` **and** `ssr` entries dropped at the entry point (both types share this counter)
+- `bad_skipped` / `clash_bad` — entries rejected as malformed (illegal port, bad UUID format, placeholder server, sample templates mixed into upstream repos, …)
+- `real_tested / real_passed / real_bad` — real-test totals: tested / passed / poison entries rejected by the core
 
-## 设计要点
+## Design notes
 
-- **两级筛选**：TCP 粗筛先砍掉整批死端点（同一端点只测一次）；真实测速再逐个验证协议层可用性，hysteria2 / tuic 等 UDP 协议同样实测，不再靠"端口活着"蒙混
-- **YAML 来源绝不原文透传**：Clash YAML 条目先解析成字段、按类型白名单重组、过合法性校验才输出 —— 免费仓库里混着的示例模板、坏缩进、占位符条目会在这一层被拦下（一条坏条目就能让整份配置导入失败）
-- **毒条目隔离**：个别字段缺失的条目会让 mihomo 拒绝加载整份配置，测速时用对分法把坏条目隔离到单条剔除，不连累同批好节点
-- **来源公平**：候选按跨来源轮询交错排序，排在前面的订阅不会吃光名额
-- **ACL4SSR 规则**：运行时拉取 ini 模板生成策略组与 rule-providers，拉取失败自动回退单个选择组 + MATCH，不中断出货
-- **口径**：SS（ss:// 与 Clash `type: ss`）一律剔除；SSR 不在剔除范围
+- **Two-stage filtering:** the TCP pre-filter kills whole batches of dead endpoints (each endpoint is probed only once); the real test then verifies protocol-level usability node by node. UDP protocols such as hysteria2 / tuic are really tested too, not waved through on an open port.
+- **YAML sources are never passed through verbatim:** every Clash YAML entry is parsed into fields, rebuilt from a per-type field whitelist, and validated (type / server / port / UUID format …) before it can ship — the sample templates, placeholder entries and broken indentation mixed into free repos are stopped here (a single bad entry can make a whole config fail to import).
+- **Poison-entry isolation:** one malformed entry can make mihomo refuse to load an entire test config, so failing chunks are bisected until the bad entry is isolated and dropped alone, without taking the good nodes in its batch down with it.
+- **Source fairness:** candidates are interleaved round-robin across sources before the cap is applied, so the first subscriptions in the list cannot eat the whole quota.
+- **ACL4SSR rules:** the ini template is fetched at runtime to generate proxy groups and rule-providers; if the fetch fails, the build falls back to a single select group + MATCH instead of failing.
+- **Type policy:** `ss`, `ssr`, `socks5` and `http` are always dropped; only `vmess`, `vless`, `trojan`, `hysteria`, `hysteria2` and `tuic` ship.
 
-## 说明
+## Notes
 
-- 未填 `GITHUB_TOKEN` 时 GitHub 核心 API 限额 60 次/小时，采集器扫到限额会自动停扫、用已拿到的结果出清单，不会整轮报废；脚本带 `state.json` 缓存，未更新的仓库直接复用上次结果省额度
-- 免费节点时效很短：本工具保证"发布时实测可用"，几小时后仍会自然死亡一批，这是货源性质决定的，勤刷新即可
-- 仅供学习与技术研究使用，请遵守当地法律法规
+- Without `GITHUB_TOKEN`, the GitHub core API limit is 60 requests/hour; the collector stops scanning when it hits the limit and still publishes a list from what it has, instead of wasting the whole round. A `state.json` cache lets unchanged repos reuse their previous results to save quota.
+- Free nodes die fast by nature: this tool guarantees "verified working at publish time", and a batch will still die off within hours. Just refresh.
+- For learning and technical research only; please comply with local laws and regulations.
 
 ## License
 

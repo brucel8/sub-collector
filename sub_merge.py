@@ -27,8 +27,9 @@ sub_merge.py — 把 sub_collector.py 采集到的订阅链接全部抓下来，
 Clash 规则：运行时拉取 ACL4SSR_INI 指向的 ini（默认 Gavin 的 ACL4SSR fork
 Mini 版），按其中的 custom_proxy_group 生成策略组、ruleset 生成
 rule-providers + 规则；拉取失败则回退到单个选择组 + MATCH。
-SS 口径：ss:// 节点与 Clash 里 type: ss 的条目一律剔除（沿用采集阶段的要求）；
-SSR 不在剔除范围。
+类型口径：ss、ssr、socks5、http 一律剔除（ss/ssr 在 URI 入口就扔，
+socks5/http 只来自 Clash YAML、未列入类型白名单）；最终只保留
+vmess、vless、trojan、hysteria、hysteria2、tuic 六种。
 来源口径：URI 订阅（明文 / base64）里的节点同时进两份输出；Clash YAML 订阅
 里的节点只进 clash 版，所以 clash 版通常比 v2ray 版多。YAML 来源的条目一律
 先解析成字段、按白名单重组、过合法性校验（类型/服务器/端口/UUID 格式等）
